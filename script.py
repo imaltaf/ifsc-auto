@@ -1,10 +1,12 @@
 import csv
 import os
 import requests
+import asyncio
+import uuid
 from io import StringIO
 from appwrite.client import Client
 from appwrite.services.databases import Databases
-from telegram import Bot
+from telegram.ext import Application
 
 # Initialize Appwrite client
 client = Client()
@@ -16,30 +18,32 @@ client.set_key(os.getenv('APPWRITE_API_KEY'))
 databases = Databases(client)
 
 # Initialize Telegram bot
-bot = Bot(token=os.getenv('TELEGRAM_BOT_TOKEN'))
+telegram_bot = Application.builder().token(os.getenv('TELEGRAM_BOT_TOKEN')).build()
 
 def download_csv(url):
     response = requests.get(url)
     response.raise_for_status()  # Raise an exception for bad status codes
     return StringIO(response.text)
 
+async def send_telegram_message(message):
+    chat_id = os.getenv('TELEGRAM_CHAT_ID')
+    await telegram_bot.bot.send_message(chat_id=chat_id, text=message)
+
 def import_csv_to_appwrite(csv_file, database_id, collection_id):
     csv_reader = csv.DictReader(csv_file)
     for row in csv_reader:
+        # Generate a unique document ID
+        document_id = str(uuid.uuid4())
         # Create a document in Appwrite for each row
         result = databases.create_document(
             database_id=database_id,
             collection_id=collection_id,
+            document_id=document_id,
             data=row
         )
         print(f"Imported document: {result['$id']}")
 
-    # Send Telegram notification
-    chat_id = os.getenv('TELEGRAM_CHAT_ID')
-    message = "CSV import to Appwrite completed successfully!"
-    bot.send_message(chat_id=chat_id, text=message)
-
-if __name__ == "__main__":
+async def main():
     csv_url = os.getenv('CSV_URL')
     if not csv_url:
         raise ValueError("CSV_URL not found in environment variables")
@@ -50,15 +54,15 @@ if __name__ == "__main__":
     try:
         csv_file = download_csv(csv_url)
         import_csv_to_appwrite(csv_file, database_id, collection_id)
+        await send_telegram_message("CSV import to Appwrite completed successfully!")
     except requests.RequestException as e:
-        print(f"Error downloading CSV file: {e}")
-        # Send error notification via Telegram
-        chat_id = os.getenv('TELEGRAM_CHAT_ID')
         error_message = f"Error occurred while downloading or processing CSV: {e}"
-        bot.send_message(chat_id=chat_id, text=error_message)
+        print(error_message)
+        await send_telegram_message(error_message)
     except Exception as e:
-        print(f"An unexpected error occurred: {e}")
-        # Send error notification via Telegram
-        chat_id = os.getenv('TELEGRAM_CHAT_ID')
         error_message = f"An unexpected error occurred: {e}"
-        bot.send_message(chat_id=chat_id, text=error_message)
+        print(error_message)
+        await send_telegram_message(error_message)
+
+if __name__ == "__main__":
+    asyncio.run(main())
