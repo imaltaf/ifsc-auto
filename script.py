@@ -29,17 +29,33 @@ async def send_telegram_message(message):
     chat_id = os.getenv('TELEGRAM_CHAT_ID')
     await telegram_bot.bot.send_message(chat_id=chat_id, text=message)
 
+def convert_to_boolean(value):
+    return value.lower() in ('true', 'yes', '1', 't', 'y')
+
+def process_row(row):
+    processed_row = {}
+    for key, value in row.items():
+        if key in ['IMPS', 'RTGS', 'NEFT', 'UPI']:
+            processed_row[key] = convert_to_boolean(value)
+        else:
+            processed_row[key] = value
+    return processed_row
+
 def import_csv_to_appwrite(csv_file, database_id, collection_id):
     csv_reader = csv.DictReader(csv_file)
     for row in csv_reader:
+        # Process the row to convert boolean fields
+        processed_row = process_row(row)
+        
         # Generate a unique document ID
         document_id = str(uuid.uuid4())
+        
         # Create a document in Appwrite for each row
         result = databases.create_document(
             database_id=database_id,
             collection_id=collection_id,
             document_id=document_id,
-            data=row
+            data=processed_row
         )
         print(f"Imported document: {result['$id']}")
 
