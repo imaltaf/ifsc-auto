@@ -21,6 +21,12 @@ databases = Databases(client)
 # Initialize Telegram bot
 telegram_bot = Application.builder().token(os.getenv('TELEGRAM_BOT_TOKEN')).build()
 
+# Define the expected attributes
+EXPECTED_ATTRIBUTES = [
+    "BANK", "IFSC", "BRANCH", "CENTRE", "DISTRICT", "STATE", "ADDRESS", "CONTACT",
+    "IMPS", "RTGS", "CITY", "ISO3166", "NEFT", "MICR", "UPI"
+]
+
 def download_csv(url):
     response = requests.get(url)
     response.raise_for_status()  # Raise an exception for bad status codes
@@ -36,6 +42,8 @@ def convert_to_boolean(value):
 def process_row(row):
     processed_row = {}
     for key, value in row.items():
+        if key not in EXPECTED_ATTRIBUTES:
+            continue  # Skip unexpected attributes
         if key in ['IMPS', 'RTGS', 'NEFT', 'UPI']:
             processed_row[key] = convert_to_boolean(value)
         elif key == 'ISO3166':
@@ -48,7 +56,7 @@ def import_csv_to_appwrite(csv_file, database_id, collection_id):
     csv_reader = csv.DictReader(csv_file)
     for row in csv_reader:
         try:
-            # Process the row to convert boolean fields and handle ISO3166
+            # Process the row to convert boolean fields, handle ISO3166, and filter attributes
             processed_row = process_row(row)
             
             # Generate a unique document ID
