@@ -40,7 +40,10 @@ def import_csv_to_appwrite(csv_file, database_id, collection_id):
     bot.send_message(chat_id=chat_id, text=message)
 
 if __name__ == "__main__":
-    csv_url = input("Enter the URL of the CSV file to download: ")
+    csv_url = os.getenv('CSV_URL')
+    if not csv_url:
+        raise ValueError("CSV_URL not found in environment variables")
+    
     database_id = os.getenv('APPWRITE_DATABASE_ID')
     collection_id = os.getenv('APPWRITE_COLLECTION_ID')
     

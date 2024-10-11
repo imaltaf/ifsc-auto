@@ -4,5 +4,3 @@ services:
   app:
     build: .
     env_file: .env
-    stdin_open: true  # Keep STDIN open
-    tty: true   
