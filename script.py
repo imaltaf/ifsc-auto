@@ -7,6 +7,7 @@ from io import StringIO
 from appwrite.client import Client
 from appwrite.services.databases import Databases
 from telegram.ext import Application
+from appwrite.exception import AppwriteException
 
 # Initialize Appwrite client
 client = Client()
@@ -30,34 +31,42 @@ async def send_telegram_message(message):
     await telegram_bot.bot.send_message(chat_id=chat_id, text=message)
 
 def convert_to_boolean(value):
-    return value.lower() in ('true', 'yes', '1', 't', 'y')
+    return str(value).lower() in ('true', 'yes', '1', 't', 'y')
 
 def process_row(row):
     processed_row = {}
     for key, value in row.items():
         if key in ['IMPS', 'RTGS', 'NEFT', 'UPI']:
             processed_row[key] = convert_to_boolean(value)
+        elif key == 'ISO3166':
+            processed_row[key] = str(value)[:2]  # Truncate to 2 characters
         else:
-            processed_row[key] = value
+            processed_row[key] = str(value)  # Ensure all values are strings
     return processed_row
 
 def import_csv_to_appwrite(csv_file, database_id, collection_id):
     csv_reader = csv.DictReader(csv_file)
     for row in csv_reader:
-        # Process the row to convert boolean fields
-        processed_row = process_row(row)
-        
-        # Generate a unique document ID
-        document_id = str(uuid.uuid4())
-        
-        # Create a document in Appwrite for each row
-        result = databases.create_document(
-            database_id=database_id,
-            collection_id=collection_id,
-            document_id=document_id,
-            data=processed_row
-        )
-        print(f"Imported document: {result['$id']}")
+        try:
+            # Process the row to convert boolean fields and handle ISO3166
+            processed_row = process_row(row)
+            
+            # Generate a unique document ID
+            document_id = str(uuid.uuid4())
+            
+            # Create a document in Appwrite for each row
+            result = databases.create_document(
+                database_id=database_id,
+                collection_id=collection_id,
+                document_id=document_id,
+                data=processed_row
+            )
+            print(f"Imported document: {result['$id']}")
+        except AppwriteException as e:
+            print(f"Error importing row: {row.get('IFSC', 'Unknown IFSC')}")
+            print(f"Error details: {str(e)}")
+            # You might want to log this error or handle it in some way
+            continue  # Skip this row and continue with the next one
 
 async def main():
     csv_url = os.getenv('CSV_URL')
